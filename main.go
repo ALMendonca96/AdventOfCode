@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 	"unicode"
 )
 
@@ -69,7 +71,7 @@ func getLastDigit(ch chan string, line string) {
 	ch <- digit
 }
 
-func getDigitsAsync(ch chan int, line string) {
+func getDigits(line string) int {
 	var firstDigit string
 	var lastDigit string
 
@@ -84,7 +86,8 @@ func getDigitsAsync(ch chan int, line string) {
 	lastDigit = <-lastDigitChanel
 
 	digits, _ := strconv.Atoi(firstDigit + lastDigit)
-	ch <- digits
+
+	return digits
 }
 
 func main() {
@@ -94,18 +97,52 @@ func main() {
 	}
 	defer file.Close()
 
+	//totalChanel receives the digit from each line from the workers
+	totalChanel := make(chan int)
+
+	//lines chanel send each line of the file to the workers,
+	lines := make(chan string, 100)
+
+	var wg sync.WaitGroup
+
 	scanner := bufio.NewScanner(file)
 
-	var total int
-	var rows int
-	for scanner.Scan() {
-		line := scanner.Text()
+	start := time.Now()
 
-		chanel := make(chan int)
-		go getDigitsAsync(chanel, line)
-		total += <-chanel
-		rows++
+	//sending the lines to the workers through the lines chanel
+	go func() {
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		close(lines)
+	}()
+
+	workNumber := 100
+
+	for i := 0; i < workNumber; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			for line := range lines {
+				lineDigits := getDigits(line)
+				totalChanel <- lineDigits
+			}
+		}()
 	}
 
-	fmt.Printf("The total amout is %d\n", total)
+	go func() {
+		wg.Wait()
+		close(totalChanel)
+	}()
+
+	totalSum := 0
+	for sum := range totalChanel {
+		totalSum += sum
+	}
+
+	fmt.Println("Total sum:", totalSum)
+
+	elapsed := time.Since(start)
+	fmt.Printf("Took %s\n", elapsed)
 }
