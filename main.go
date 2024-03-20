@@ -97,10 +97,7 @@ func main() {
 	}
 	defer file.Close()
 
-	//totalChanel receives the digit from each line from the workers
 	totalChanel := make(chan int)
-
-	//lines chanel send each line of the file to the workers,
 	lines := make(chan string, 100)
 
 	var wg sync.WaitGroup
@@ -109,7 +106,6 @@ func main() {
 
 	start := time.Now()
 
-	//sending the lines to the workers through the lines chanel
 	go func() {
 		for scanner.Scan() {
 			lines <- scanner.Text()
